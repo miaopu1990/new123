@@ -6,17 +6,13 @@
 //  Copyright (c) 2014年 TU YOU. All rights reserved.
 //
 
-// 版权属于原作者
-// http://code4app.com (cn) http://code4app.net (en)
-// 发布代码于最专业的源码分享网站: Code4App.com
-
 #import "SphereMenu.h"
 
-static const CGFloat kAngleOffset = M_PI_2 / 2;
-static const CGFloat kSphereLength = 80;
-static const float kSphereDamping = 0.3;
+static const CGFloat kAngleOffset = M_PI_2 / 1.5;
+static const CGFloat kSphereLength = 90;
+static const float kSphereDamping = .3;
 
-@interface SphereMenu () <UICollisionBehaviorDelegate>
+@interface SphereMenu () <UICollisionBehaviorDelegate,UIDynamicAnimatorDelegate>
 
 @property (assign, nonatomic) NSUInteger count ;
 @property (strong, nonatomic) UIImageView *start;
@@ -32,7 +28,8 @@ static const float kSphereDamping = 0.3;
 @property (strong, nonatomic) NSMutableArray *taps;
 
 @property (strong, nonatomic) UITapGestureRecognizer *tapOnStart;
-
+@property (strong, nonatomic) UISwipeGestureRecognizer * swipeGestureRecognizerUp;
+@property (strong, nonatomic) UISwipeGestureRecognizer * swipeGestureRecognizerDown;
 @property (strong, nonatomic) id<UIDynamicItem> bumper;
 @property (assign, nonatomic) BOOL expanded;
 
@@ -56,9 +53,21 @@ static const float kSphereDamping = 0.3;
                                                                   action:@selector(startTapped:)];
         [self.start addGestureRecognizer:self.tapOnStart];
         [self addSubview:self.start];
+        
+        self.swipeGestureRecognizerUp = [[UISwipeGestureRecognizer alloc]initWithTarget:self action:@selector(recognizerDirectionUp:)];
+        [self.swipeGestureRecognizerUp setDirection:(UISwipeGestureRecognizerDirectionUp)];
+        [self.start addGestureRecognizer:self.swipeGestureRecognizerUp];
+        
+        self.swipeGestureRecognizerDown = [[UISwipeGestureRecognizer alloc]initWithTarget:self action:@selector(recognizerDirectionDown:)];
+        [self.swipeGestureRecognizerDown setDirection:(UISwipeGestureRecognizerDirectionDown)];
+        [self.start addGestureRecognizer:self.swipeGestureRecognizerDown];
     }
     return self;
 }
+
+
+
+
 
 - (void)commonSetup
 {
@@ -89,7 +98,7 @@ static const float kSphereDamping = 0.3;
     
     // setup animator and behavior
     self.animator = [[UIDynamicAnimator alloc] initWithReferenceView:self.superview];
-    
+    self.animator.delegate = self;
     self.collision = [[UICollisionBehavior alloc] initWithItems:self.items];
     self.collision.translatesReferenceBoundsIntoBoundary = YES;
     self.collision.collisionDelegate = self;
@@ -146,21 +155,49 @@ static const float kSphereDamping = 0.3;
 
 - (void)startTapped:(UITapGestureRecognizer *)gesture
 {
+    if ([self.delegate respondsToSelector:@selector(sphereMenuOnClicked)]) {
+        [self.delegate sphereMenuOnClicked];
+    }
+}
+
+-(void)recognizerDirectionUp:(UISwipeGestureRecognizer *)gesture
+{
+    
+    
+    [self.animator removeBehavior:self.collision];
+    [self.animator removeBehavior:self.itemBehavior];
+    [self removeSnapBehaviors];
+    
+    if (!self.expanded) {
+        if ([self.delegate respondsToSelector:@selector(expandSphereMenu)]) {
+            [self.delegate expandSphereMenu];
+        }
+        [self expandSubmenu];
+    }
+    
+    
+}
+
+-(void)recognizerDirectionDown:(UISwipeGestureRecognizer *)gesture
+{
+    
+    
     [self.animator removeBehavior:self.collision];
     [self.animator removeBehavior:self.itemBehavior];
     [self removeSnapBehaviors];
     
     if (self.expanded) {
+        if ([self.delegate respondsToSelector:@selector(shrinkSphereMenu)]) {
+            [self.delegate shrinkSphereMenu];
+        }
         [self shrinkSubmenu];
-    } else {
-        [self expandSubmenu];
     }
-    
-    self.expanded = !self.expanded;
 }
 
 - (void)expandSubmenu
 {
+    self.expanded = YES;
+
     for (int i = 0; i < self.count; i++) {
         [self snapToPostionsWithIndex:i];
     }
@@ -168,6 +205,8 @@ static const float kSphereDamping = 0.3;
 
 - (void)shrinkSubmenu
 {
+    self.expanded = NO;
+
     for (int i = 0; i < self.count; i++) {
         [self snapToStartWithIndex:i];
     }
@@ -237,8 +276,33 @@ static const float kSphereDamping = 0.3;
 - (void)removeSnapBehaviors
 {
     [self.snaps enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+      
         [self.animator removeBehavior:obj];
     }];
+}
+- (void)dynamicAnimatorWillResume:(UIDynamicAnimator *)animator
+{
+    NSLog(@"dynamicAnimatorWillResume");
+    if (!self.expanded) {
+       
+        for (int idx =0; idx<self.items.count; idx++) {
+            UIImageView *imageV = [self.items objectAtIndex:idx];
+            [imageV setImage:[self.images objectAtIndex:idx]];
+            
+        }
+    }
+}
+- (void)dynamicAnimatorDidPause:(UIDynamicAnimator *)animator
+{
+    if (!self.expanded) {
+        
+        for (int idx =0; idx<self.items.count; idx++) {
+            UIImageView *imageV = [self.items objectAtIndex:idx];
+            [imageV setImage:nil];
+            
+        }
+        
+    }
 }
 
 @end
